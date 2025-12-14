@@ -6,3 +6,7 @@ pdfplumber
 pandas
 xlsxwriter
 python-multipart
+python-docx
+pytesseract
+Pillow
+pdf2docx

@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+pdf_downloads/
+excel_outputs/
+word_outputs/

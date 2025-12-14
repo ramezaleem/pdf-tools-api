@@ -12,6 +12,7 @@ from fastapi import UploadFile, File
 import pdfplumber
 import pandas as pd
 
+from pdf2docx import Converter
 
 # =============================
 # App and Constants
@@ -23,6 +24,11 @@ PDF_DOWNLOAD_FOLDER = "pdf_uploads"
 EXCEL_DOWNLOAD_FOLDER = "excel_outputs"
 os.makedirs(PDF_DOWNLOAD_FOLDER, exist_ok=True)
 os.makedirs(EXCEL_DOWNLOAD_FOLDER, exist_ok=True)
+WORD_DOWNLOAD_FOLDER = "word_outputs"
+os.makedirs(WORD_DOWNLOAD_FOLDER, exist_ok=True)
+
+
+
 
 # =============================
 # Utility Functions
@@ -83,7 +89,7 @@ def download_youtube(url):
     return FileResponse(filename, filename=safe_filename, headers=headers)
 
 # =============================
-# Endpoint
+# Endpoint PDF To Excel
 # =============================
 @app.post("/pdf/to-excel")
 async def pdf_to_excel(file: UploadFile = File(...)):
@@ -123,3 +129,37 @@ async def pdf_to_excel(file: UploadFile = File(...)):
     safe_filename = ascii_filename(os.path.basename(excel_path))
     headers = {"Content-Disposition": f'attachment; filename=\"{safe_filename}\"'}
     return FileResponse(excel_path, filename=safe_filename, headers=headers)
+
+# =============================
+# Endpoint PDF To Word
+# =============================
+@app.post("/pdf/to-word")
+async def pdf_to_word(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(".pdf"):
+        return {"error": "Please upload a PDF file."}
+
+    pdf_path = os.path.join(PDF_DOWNLOAD_FOLDER, file.filename)
+    with open(pdf_path, "wb") as f:
+        f.write(await file.read())
+
+    base_name = os.path.splitext(os.path.basename(file.filename))[0]
+    word_path = os.path.join(WORD_DOWNLOAD_FOLDER, base_name + ".docx")
+
+    try:
+        cv = Converter(pdf_path)
+        cv.convert(
+            word_path,
+            start=0,
+            end=None,         
+           
+        )
+        cv.close()
+    except Exception as e:
+        return {"error": f"Failed to convert PDF: {str(e)}"}
+
+    delete_file_later(pdf_path)
+    delete_file_later(word_path, delay=600)
+
+    safe_filename = ascii_filename(os.path.basename(word_path))
+    headers = {"Content-Disposition": f'attachment; filename=\"{safe_filename}\"'}
+    return FileResponse(word_path, filename=safe_filename, headers=headers)
