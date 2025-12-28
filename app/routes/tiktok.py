@@ -1,0 +1,72 @@
+import asyncio
+import os
+
+from fastapi import APIRouter
+
+from app.config import DOWNLOAD_FOLDER
+from app.downloaders.common import download_video
+from app.services.download_tracker import DOWNLOAD_TRACKER
+from app.utils.file_ops import delete_file_later
+
+router = APIRouter(prefix="/tiktok", tags=["TikTok"])
+
+
+@router.post("/download")
+async def request_tiktok_download(url: str):
+    """Kick off a TikTok download and return a process identifier."""
+    job = DOWNLOAD_TRACKER.create_job(source="tiktok", url=url)
+
+    output_template = os.path.join(
+        DOWNLOAD_FOLDER, "tiktok_%(id)s_%(upload_date)s_%(timestamp)s.%(ext)s"
+    )
+    custom_options = {
+        "retries": 5,
+        "fragment_retries": 5,
+        "skip_unavailable_fragments": True,
+    }
+
+    async def runner():
+        DOWNLOAD_TRACKER.update_job(job.process_id, status="running", progress=0.0)
+
+        def hook(data):
+            status = data.get("status")
+            if status == "downloading":
+                downloaded = int(data.get("downloaded_bytes") or 0)
+                total = data.get("total_bytes") or data.get("total_bytes_estimate")
+                progress = (
+                    (downloaded / total) * 100 if total and total > 0 else 0.0
+                )
+                DOWNLOAD_TRACKER.update_job(
+                    job.process_id,
+                    bytes_downloaded=downloaded,
+                    total_bytes=int(total) if total else None,
+                    progress=progress,
+                )
+            elif status == "finished":
+                DOWNLOAD_TRACKER.update_job(job.process_id, progress=100.0)
+
+        try:
+            filename = await asyncio.to_thread(
+                download_video,
+                url,
+                output_template,
+                custom_options,
+                hook,
+            )
+        except Exception as exc:
+            DOWNLOAD_TRACKER.update_job(
+                job.process_id, status="failed", error=str(exc)
+            )
+            return
+
+        DOWNLOAD_TRACKER.update_job(
+            job.process_id,
+            status="completed",
+            progress=100.0,
+            file_path=filename,
+            suggested_name=os.path.basename(filename),
+        )
+        delete_file_later(filename, delay=600)
+
+    asyncio.create_task(runner())
+    return {"process_id": job.process_id}

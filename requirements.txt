@@ -2,12 +2,14 @@ yt-dlp>=2024.04.09
 fastapi
 uvicorn
 yt-dlp
-pdfplumber
-pandas
-xlsxwriter
-python-multipart
-python-docx
-pytesseract
-Pillow
-pdf2docx
-PyMuPDF
+httpx
+# PDF conversion deps (commented out for current testing focus)
+# pdfplumber
+# pandas
+# xlsxwriter
+# python-multipart
+# python-docx
+# pytesseract
+# Pillow
+# pdf2docx
+# PyMuPDF
